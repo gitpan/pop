@@ -1,18 +1,11 @@
-#!/usr/bin/perl
-use DBI;
-use Carp;
-use PPS::Environment;
+#!/usr/bin/perl -l
 use POP::Schema_parser;
-my $dsn = "dbi:Sybase:server=$POP_DB_SERVER;database=$POP_DB_DB";
-my $dbh = DBI->connect($dsn, $POP_DB_USER, $POP_DB_PASSWD,
-		{ RaiseError => 1 }) or
-  croak "Couldn't connect to [$dsn]: $DBI::errstr";
 
 my $parse = new POP::Schema_parser;
 $parse->parse(\*STDIN);
 if ($ARGV[0] eq '-init') {
   @ARGV = ('INIT');
-}
+} 
 unless (@ARGV) { @ARGV = grep {$_ ne 'INIT'} keys %$parse }
 foreach my $schema (@ARGV) {
   push(@tables, map {$_->{'sql'}} grep {$_->{'type'} eq 'TABLE'} @{$parse->{$schema}});
@@ -21,9 +14,5 @@ foreach my $schema (@ARGV) {
   push(@misc, map {$_->{'sql'}} grep {$_->{'type'} eq 'MISC'} @{$parse->{$schema}});
 }
 for (@misc, @tables, @indices, @procs) {
-  eval {
-    $dbh->do($_);
-  };
-  if ($@) { print STDERR $@ }
+  print $_;
 } 
-$dbh->disconnect;

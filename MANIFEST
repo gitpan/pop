@@ -14,9 +14,12 @@ bin/schema_drop
 bin/schema_load
 bin/schema_trunc
 bin/create_environment
+bin/poxref
+bin/schema_load_script
 environment.template
 lib
 lib/POP
+lib/POP/Carp.pm
 lib/POP/Hash.pm
 lib/POP/Id_factory.pm
 lib/POP/Lazy_object.pm
@@ -27,7 +30,6 @@ lib/POP/POX_parser.pm
 lib/POP/Persistent.pm
 lib/POP/Pid_factory.pm
 lib/POP/Schema_parser.pm
-lib/POP/Carp.pm
 lib/POP/Lid_factory.pm
 lib/POP/Error.pm
 lib/POP/Environment.pm

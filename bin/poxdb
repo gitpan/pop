@@ -1,4 +1,4 @@
-#!/eit/perl5.005/bin/perl
+#!/usr/bin/perl
 use strict;
 use POP::POX_parser;
 #use Fcntl;

@@ -6,7 +6,7 @@ Desc:	Implements a tied array which contains a list of persistent objects,
 =cut
 package POP::Lazy_object_list;
 
-$VERSION = do{my(@r)=q$Revision: 1.7 $=~/d+/g;sprintf '%d.'.'%02d'x$#r,@r};
+$VERSION = do{my(@r)=q$Revision: 1.8 $=~/d+/g;sprintf '%d.'.'%02d'x$#r,@r};
 
 use strict;
 use Carp;
@@ -130,7 +130,7 @@ sub SHIFT {
 sub CLEAR {
   @{$_[0]{'list'}} = ();
   if (my $p = $_[0]{'parent'}->deref) {
-    (tied %$p)->STORE($_[0]{'name'}, $_[0]{'list'});
+    (tied %$p)->STORE($_[0]{'name'}, (tied %$p)->{$_[0]{'name'}});
   } else {
     croak "Parent gone when STORE called!?";
   }

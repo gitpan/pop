@@ -2,7 +2,7 @@ package POP::Lid_factory;
 
 use strict;
 use POP::Id_factory;
-use POP::Environment qw/$LID_FILE/;
+use POP::Environment qw/$POP_LID_FILE/;
 use vars qw/@ISA $VERSION/;
 
 $VERSION = do{my(@r)=q$Revision: 1.1 $=~/\d+/g;sprintf '%d.'.'%02d'x$#r,@r};
@@ -11,7 +11,7 @@ $VERSION = do{my(@r)=q$Revision: 1.1 $=~/\d+/g;sprintf '%d.'.'%02d'x$#r,@r};
 
 sub new {
   my $type = shift;
-  return $type->SUPER::new($LID_FILE)
+  return $type->SUPER::new($POP_LID_FILE)
 }
 
 $VERSION=$VERSION;

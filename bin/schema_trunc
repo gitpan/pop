@@ -1,10 +1,10 @@
-#!/eit/perl5.005/bin/perl
+#!/usr/bin/perl
 use DBI;
 use Carp;
 use PPS::Environment;
 use POP::Schema_parser;
-my $dsn = "dbi:Sybase:server=$DB_SERVER;database=$DB_DB";
-my $dbh = DBI->connect($dsn, $DB_USER, $DB_PASSWD,
+my $dsn = "dbi:Sybase:server=$POP_DB_SERVER;database=$POP_DB_DB";
+my $dbh = DBI->connect($dsn, $POP_DB_USER, $POP_DB_PASSWD,
 		{ RaiseError => 1 }) or
   croak "Couldn't connect to [$dsn]: $DBI::errstr";
 

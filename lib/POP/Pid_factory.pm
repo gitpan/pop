@@ -6,11 +6,11 @@ Author:	T. Burzesi (copied from Fid_factory.pm)
 
 package POP::Pid_factory;
 
-$VERSION = do{my(@r)=q$Revision: 1.2 $=~/\d+/g;sprintf '%d.'.'%02d'x$#r,@r};
+$VERSION = do{my(@r)=q$Revision: 1.3 $=~/\d+/g;sprintf '%d.'.'%02d'x$#r,@r};
 
 use strict;
 use POP::Id_factory;
-use POP::Environment qw/$PID_FILE/;
+use POP::Environment qw/$POP_PID_FILE/;
 use vars qw/@ISA $VERSION/;
 
 @ISA = qw/POP::Id_factory/;
@@ -23,6 +23,6 @@ Error:	YES
 
 sub new {
   my $type = shift;
-  return $type->SUPER::new($PID_FILE);
+  return $type->SUPER::new($POP_PID_FILE);
 }
 $VERSION = $VERSION;

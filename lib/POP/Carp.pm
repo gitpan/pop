@@ -1,7 +1,8 @@
 package POP::Carp;
 
 use Carp;
-use POP::Environment qw/$LOG_FILE $LID_FILE $MAILER $ADMIN_EMAIL/;
+use POP::Environment qw/$POP_LOG_FILE $POP_LID_FILE
+		        $POP_MAILER $POP_ADMIN_EMAIL/;
 use POP::Error;
 use POP::Lid_factory;
 use Symbol;
@@ -15,9 +16,9 @@ use vars qw/$log $lid_factory @EXPORT/;
 
 $main::SIG{__DIE__}=\&POP::Carp::croak;
 
-$lid_factory = new POP::Lid_factory $LID_FILE;
+$lid_factory = new POP::Lid_factory $POP_LID_FILE;
 $log = gensym;
-open($log, "+>>$LOG_FILE") or die "Couldn't open [$LOG_FILE]: $!";
+open($log, "+>>$POP_LOG_FILE") or die "Couldn't open [$POP_LOG_FILE]: $!";
 {
   my $old = new SelectSaver $log;
   $| = 1;
@@ -26,9 +27,9 @@ open($log, "+>>$LOG_FILE") or die "Couldn't open [$LOG_FILE]: $!";
 =head2 METHOD
 Title:  POP::Carp::email_admin
 Desc:   This method will email whatever (error) message is passed in as
-        ARG1 (string argument) to address specified by the $ADMIN_EMAIL
+        ARG1 (string argument) to address specified by the $POP_ADMIN_EMAIL
 	environment variable. The mailer program used to send the email will
-	be found in the path/file-name specified by the $MAILER environment
+	be found in the path/file-name specified by the $POP_MAILER environment
 	variable.  No return-codes are checked on the mailer as we're already
 	in a croak when this is called.
 =cut
@@ -36,7 +37,7 @@ Desc:   This method will email whatever (error) message is passed in as
 sub  email_support {
   my $errmsg = @_;
 
-  open (MAIL, "|$MAILER -s 'Error Notification' $ADMIN_EMAIL");
+  open (MAIL, "|$POP_MAILER -s 'Error Notification' $POP_ADMIN_EMAIL");
   print MAIL $errmsg;
   close MAIL;
 }
@@ -47,7 +48,7 @@ sub log_mess {
   # Try to get a lock on the file. If cannot get it after
   # a few times, forget the lock and just write the message.
   my $retries = 3;
-  unless (-e $log) { die "Log file $LOG_FILE doesn't exist!" }
+  unless (-e $log) { die "Log file $POP_LOG_FILE doesn't exist!" }
   my $status = File::lockf::tlock($log);
   while ($status == EAGAIN and $retries--) {
     sleep 1;

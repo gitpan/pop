@@ -1,6 +1,6 @@
-Perl Object Persistence (POP) Version 0.05
+Perl Object Persistence (POP) Version 0.06
 
-(c) 1999 Benjamin Holzman - bholzman@bender.com
+(c) 1999 Benjamin Holzman - bholzman@earthlink.net
 All rights reserved.  This is free software; you can
 redistribute it and/or modify it under the terms of the
 Perl Artistic License.
@@ -9,7 +9,7 @@ POP is a system to aid in the development of systems based
 around persistent object technology in the programming language
 Perl.  The persistent objects are stored in a relational database.
 
-This is pre-alpha software.  This means it's poorly documented.  However, I'd
+This is alpha software.  This means it's poorly documented.  However, I'd
 be happy to answer any questions you have, and I do intend on improving its
 documentation.
 
@@ -93,4 +93,4 @@ to get into the debugger. Try the following:
 	DB<6> p $b->baz
 	42
 
-If you manage to get this far, please let me know!!!
+If you manage to get this far, please let me know.

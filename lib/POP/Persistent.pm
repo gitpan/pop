@@ -11,7 +11,7 @@ Desc:	This is the persistent base class for POP.  It handles all of the
 require 5.005;
 package POP::Persistent;
 
-$VERSION = do{my(@r)=q$Revision: 1.14 $=~/d+/g;sprintf '%d.'.'%02d'x$#r,@r};
+$VERSION = do{my(@r)=q$Revision: 1.16 $=~/d+/g;sprintf '%d.'.'%02d'x$#r,@r};
 
 use strict;
 use vars qw/@ISA $pid_factory %CLASSES %OBJECTS %LOCKED $VERSION
@@ -25,7 +25,7 @@ use vars qw/@ISA $pid_factory %CLASSES %OBJECTS %LOCKED $VERSION
 	$POP_ISOLATION_REPEATABLE_READ $POP_ISOLATION_CURRENT/;
 use Tie::Hash;
 use DBI;
-use POP::Carp;
+use Carp;
 use POP::Environment;
 use Devel::WeakRef;
 use POP::Lazy_object;
@@ -36,17 +36,28 @@ use POP::Hash;
 use POP::Pid_factory;
 use POP::POX_parser;
 
+# Avoid "used only once" warnings
+*main::POP_UPDATE_VERSION_GRANULARITY =
 *main::POP_UPDATE_VERSION_GRANULARITY = *POP_UPDATE_VERSION_GRANULARITY;
+$main::POP_UPDATE_VERSION_ON_COMMIT =
 $main::POP_UPDATE_VERSION_ON_COMMIT = $POP_UPDATE_VERSION_ON_COMMIT = 0;
+$main::POP_UPDATE_VERSION_ON_CHANGE =
 $main::POP_UPDATE_VERSION_ON_CHANGE = $POP_UPDATE_VERSION_ON_CHANGE = 1;
 
-*main::POP_TRANSACTION_MODE = $POP_TRANSACTION_MODE;
+*main::POP_TRANSACTION_MODE =
+*main::POP_TRANSACTION_MODE = *POP_TRANSACTION_MODE;
+$main::POP_TRANSACTION_ANSI =
 $main::POP_TRANSACTION_ANSI = $POP_TRANSACTION_ANSI = 0;
+$main::POP_TRANSACTION_AUTO =
 $main::POP_TRANSACTION_AUTO = $POP_TRANSACTION_AUTO = 1;
 
+$main::POP_ISOLATION_DIRTY_READ =
 $main::POP_ISOLATION_DIRTY_READ = $POP_ISOLATION_DIRTY_READ = 1;
+$main::POP_ISOLATION_COMMITTED_READ =
 $main::POP_ISOLATION_COMMITTED_READ = $POP_ISOLATION_COMMITTED_READ = 2;
+$main::POP_ISOLATION_REPEATABLE_READ =
 $main::POP_ISOLATION_REPEATABLE_READ = $POP_ISOLATION_REPEATABLE_READ = 3;
+$main::POP_ISOLATION_CURRENT =
 $main::POP_ISOLATION_CURRENT = $POP_ISOLATION_CURRENT = 4;
 
 @ISA = qw/Tie::StdHash/;
@@ -61,12 +72,12 @@ tie(%OBJECTS, 'Devel::WeakRef::Table') or croak "object cache tie failed";
 my $parser = POP::POX_parser::->new();
 
 my $dsn;
-if ($DBI_DRIVER eq 'Sybase') {
-  $dsn = "dbi:Sybase:server=$DB_SERVER;database=$DB_DB";
+if ($POP_DBI_DRIVER eq 'Sybase') {
+  $dsn = "dbi:Sybase:server=$POP_DB_SERVER;database=$POP_DB_DB";
 } else {
-  croak "Unknown driver [$DBI_DRIVER]";
+  croak "Unknown driver [$POP_DBI_DRIVER]";
 }
-my $dbh = DBI->connect($dsn, $DB_USER, $DB_PASSWD,
+my $dbh = DBI->connect($dsn, $POP_DB_USER, $POP_DB_PASSWD,
 		     { RaiseError => 1,
 		       AutoCommit => 0 }) or
   croak "Couldn't connect to [$dsn]: $DBI::errstr";
@@ -104,7 +115,7 @@ sub new {
   unless ($CLASSES{$class}) {
     my $class_def_file = &POP::POX_parser::pox_find($class);
     unless ($class_def_file) {
-      croak "Couldn't find POX for [$class]. POXLIB=($ENV{POXLIB})";
+      croak "Couldn't find POX for [$class]. POP_POXLIB=($POP_POXLIB)";
     }
     $CLASSES{$class} = $parser->parse($class_def_file);
   }
@@ -126,7 +137,7 @@ sub new {
       $this->initialize;
     }
     $dbh->do("exec OBJECTS#NEW $pid");
-    $LOCKED{$pid} = (tied %$this);
+    $LOCKED{$pid} = $this;
     $this->_POP__Persistent_store_all;
   }
   tie(%this, $class, %this);
@@ -174,6 +185,7 @@ sub _POP__Persistent_get_version {
 
 sub _POP__Persistent_update_version {
   my $this = shift;
+  $this = tied %$this if tied %$this;
   my $sth = $dbh->prepare("exec OBJECTS#UPD $this->{'_pop__persistent_pid'}");
   $sth->execute;
   if (my @row = $sth->fetchrow) {
@@ -252,7 +264,7 @@ sub all {
   unless ($CLASSES{$class}) {
     my $class_def_file = &POP::POX_parser::pox_find($class);
     unless ($class_def_file) {
-      croak "Couldn't find POX for [$class]. POXLIB=($ENV{POXLIB})";
+      croak "Couldn't find POX for [$class]. POP_POXLIB=($POP_POXLIB)";
     }
     $CLASSES{$class} = $parser->parse($class_def_file);
   }
@@ -337,8 +349,8 @@ sub _POP__Persistent_compute_where_clause {
   foreach my $expr_or_conn (@$where) {
     if (ref $expr_or_conn) {
       my($attr, $op, $val) = @$expr_or_conn;
-      if ($c->{'attributes'}{'list'} ||
-	  $c->{'attributes'}{'hash'}) {
+      if ($c->{'attributes'}{$attr}{'list'} ||
+	  $c->{'attributes'}{$attr}{'hash'}) {
 	croak "Cannot use multi-valued attribute in where clause";
       }
       if ($c->{'attributes'}{$attr}) {
@@ -629,7 +641,8 @@ sub _POP__Persistent_type_to_db {
       return ($$val)->pid;
     } else {
       # Hmm, should be an object, but there's nothing there.
-      croak "[$val] is not an object";
+      # croak "[$val] is not an object";
+      return 0;
     }
   }
   if ($type =~ /^numeric/ || $type eq 'pidtype' || $type eq 'int') {

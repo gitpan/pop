@@ -8,9 +8,10 @@ Desc:	Class implementing a parser for POX files
 =cut
 package POP::POX_parser;
 
-$VERSION = do{my(@r)=q$Revision: 1.5 $=~/d+/g;sprintf '%d.'.'%02d'x$#r,@r};
+$VERSION = do{my(@r)=q$Revision: 1.6 $=~/d+/g;sprintf '%d.'.'%02d'x$#r,@r};
 
 use XML::Parser;
+use POP::Environment qw/$POP_POXLIB/;
 use Carp;
 
 use vars qw/$in_isa $VERSION/;
@@ -60,12 +61,12 @@ sub start {
     $attrib{'dbname'} = $attrib{'abbr'} || lc($attrib{'name'}) unless $in_isa;
     if ($attrib{'isa'}) {
       # We have to recursively parse any classes we inherit from.
-      # We use $ENV{POXLIB} to help us find the POX file which contains each
+      # We use $POP_POXLIB} to help us find the POX file which contains each
       # class we derive from.
       foreach (split /\s*,\s*/, $attrib{'isa'}) {
 	my $pox_file;
 	unless ($pox_file = pox_find($_)) {
-	  croak "Could not find POX for [$_] (POXLIB=[$ENV{POXLIB}])";
+	  croak "Could not find POX for [$_] (POP_POXLIB=[$POP_POXLIB])";
 	}
 	# dynamic scoping, babeee!
 	local $in_isa = $_;
@@ -144,6 +145,7 @@ sub proc {
   my($this, $parser, $target, $data) = @_;
   return if $in_isa;
   if ($target eq 'version') {
+    # This pattern is split onto two lines so RCS doesn't muck with it.
     $data =~ /\$
 	Revision:\ ([\d.]+)/x;
     $this->{'version'} = $1;
@@ -152,13 +154,13 @@ sub proc {
      
 =head2 METHOD
 Name:	POP::POX_parser::pox_find
-Desc:	Searches through $ENV{POXLIB} paths to find .pox file matching given
+Desc:	Searches through $POP_POXLIB paths to find .pox file matching given
 	class.
 =cut
 sub pox_find {
   my $class = shift;
   $class =~ s,::,/,g;
-  foreach my $dir (split /:/, $ENV{POXLIB}) {
+  foreach my $dir (split /:/, $POP_POXLIB) {
     if (-e "$dir/$class.pox") {
       return "$dir/$class.pox";
     }
