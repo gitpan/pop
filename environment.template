@@ -5,5 +5,15 @@ DB_DB=
 DB_USER=
 DB_PASSWD=
 POXLIB=
-POX_SYSTEM=
+POP_SYSTEM=
 PID_FILE=
+# LID_FILE - filename to store the incrementing logfile id
+LID_FILE=
+# LOG_FILE - filename of the logfile
+LOG_FILE=
+# MAILER - command line for mailer to use when sending messages regarding
+# system errors.
+MAILER=
+# ADMIN_EMAIL - email address to use when sending messages regarding system
+# errors.
+ADMIN_EMAIL=

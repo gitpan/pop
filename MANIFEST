@@ -1,3 +1,11 @@
+MANIFEST
+OLD-DOCUMENTATION.html
+README
+README.ALL
+README.DEPENDENCIES
+README.LINK
+README.POX
+README.TRANSACTIONS
 bin
 bin/poxhtml
 bin/poxdb
@@ -5,6 +13,8 @@ bin/poxperl
 bin/schema_drop
 bin/schema_load
 bin/schema_trunc
+bin/create_environment
+environment.template
 lib
 lib/POP
 lib/POP/Hash.pm
@@ -17,10 +27,8 @@ lib/POP/POX_parser.pm
 lib/POP/Persistent.pm
 lib/POP/Pid_factory.pm
 lib/POP/Schema_parser.pm
+lib/POP/Carp.pm
+lib/POP/Lid_factory.pm
+lib/POP/Error.pm
+lib/POP/Environment.pm
 lib/poxargs.pl
-README
-README.ALL
-README.DEPENDENCIES
-README.LINK
-README.POX
-environment.template

@@ -5,10 +5,8 @@ Desc:	This is the persistent base class for POP.  It handles all of the
 	all attribute fetches and stores.  The basic algorithm is to update
 	the changed attribute on a store, and reload the object from
 	persistence on fetch if any attribute has been changed by another
-	process since the last load.  A shared memory segment with one byte
-	per object is used to implement an object version scheme.  There
-	are a number of additional optimizations.  See the POP documentation
-	for more details.
+	process since the last load.  There are a number of additional
+	optimizations.  See the POP documentation for more details.
 =cut
 require 5.005;
 package POP::Persistent;
@@ -16,18 +14,19 @@ package POP::Persistent;
 $VERSION = do{my(@r)=q$Revision: 1.14 $=~/d+/g;sprintf '%d.'.'%02d'x$#r,@r};
 
 use strict;
-use vars qw/@ISA $pid_factory %CLASSES %OBJECTS $VERSION/;
+use vars qw/@ISA $pid_factory %CLASSES %OBJECTS %LOCKED $VERSION
+	$POP_UPDATE_VERSION_GRANULARITY 
+	  $POP_UPDATE_VERSION_ON_CHANGE
+	  $POP_UPDATE_VERSION_ON_COMMIT
+	$POP_TRANSACTION_MODE
+	  $POP_TRANSACTION_ANSI
+	  $POP_TRANSACTION_AUTO
+	$POP_ISOLATION_DIRTY_READ $POP_ISOLATION_COMMITTED_READ
+	$POP_ISOLATION_REPEATABLE_READ $POP_ISOLATION_CURRENT/;
 use Tie::Hash;
 use DBI;
-use Carp;
+use POP::Carp;
 use POP::Environment;
-use POSIX qw/floor/;
-use constant NOT_FOUND	=> -1;
-use constant SHM_KEY => 1999;
-use constant SHM_SIZE => 2**17; # 131,072
-use constant SEM_STEP => 8192;
-use IPC::SysV qw(IPC_CREAT S_IRWXU S_IRWXG);
-use IPC::Semaphore;
 use Devel::WeakRef;
 use POP::Lazy_object;
 use POP::Lazy_object_list;
@@ -37,17 +36,21 @@ use POP::Hash;
 use POP::Pid_factory;
 use POP::POX_parser;
 
+*main::POP_UPDATE_VERSION_GRANULARITY = *POP_UPDATE_VERSION_GRANULARITY;
+$main::POP_UPDATE_VERSION_ON_COMMIT = $POP_UPDATE_VERSION_ON_COMMIT = 0;
+$main::POP_UPDATE_VERSION_ON_CHANGE = $POP_UPDATE_VERSION_ON_CHANGE = 1;
+
+*main::POP_TRANSACTION_MODE = $POP_TRANSACTION_MODE;
+$main::POP_TRANSACTION_ANSI = $POP_TRANSACTION_ANSI = 0;
+$main::POP_TRANSACTION_AUTO = $POP_TRANSACTION_AUTO = 1;
+
+$main::POP_ISOLATION_DIRTY_READ = $POP_ISOLATION_DIRTY_READ = 1;
+$main::POP_ISOLATION_COMMITTED_READ = $POP_ISOLATION_COMMITTED_READ = 2;
+$main::POP_ISOLATION_REPEATABLE_READ = $POP_ISOLATION_REPEATABLE_READ = 3;
+$main::POP_ISOLATION_CURRENT = $POP_ISOLATION_CURRENT = 4;
+
 @ISA = qw/Tie::StdHash/;
 
-my $shmid = shmget(SHM_KEY, SHM_SIZE, S_IRWXU|S_IRWXG|IPC_CREAT);
-unless ($shmid) { croak "shmget failed: $!" }
-my $semset = IPC::Semaphore::->new(SHM_KEY, SHM_SIZE / SEM_STEP, S_IRWXU|S_IRWXG|IPC_CREAT);
-unless ($semset) {
-  if ($! == 22) {
-    croak "SEM_STEP [".&SEM_STEP."] is too small";
-  }
-  croak "semget failed: $!";
-}
 my $pid_factory = POP::Pid_factory->new;
 
 # %OBJECTS is our object "cache"; we don't want to interfere with
@@ -68,6 +71,34 @@ my $dbh = DBI->connect($dsn, $DB_USER, $DB_PASSWD,
 		       AutoCommit => 0 }) or
   croak "Couldn't connect to [$dsn]: $DBI::errstr";
 
+sub main::POP_COMMIT {
+  if ($POP_UPDATE_VERSION_GRANULARITY != $POP_UPDATE_VERSION_ON_CHANGE) {
+    for (values %LOCKED) {
+      $_->_POP__Persistent_update_version;
+    }
+  }
+  %LOCKED = ();
+  $dbh->commit;
+}
+
+sub main::POP_ROLLBACK {
+  %LOCKED = ();
+  $dbh->rollback;
+}
+
+sub main::POP_ISOLATION {
+  my $level = shift;
+  if ($level == $POP_ISOLATION_DIRTY_READ) {
+    $dbh->do("set transaction isolation level 0");
+  } elsif ($level == $POP_ISOLATION_COMMITTED_READ) {
+    $dbh->do("set transaction isolation level 1");
+  } elsif ($level == $POP_ISOLATION_REPEATABLE_READ) {
+    $dbh->do("set transaction isolation level 3");
+  } else {
+    croak "Unknown isolation level [$level]";
+  }
+}
+ 
 sub new {
   my $class = shift;
   unless ($CLASSES{$class}) {
@@ -89,13 +120,13 @@ sub new {
     }
     $this->_POP__Persistent_restore_from_pid($pid);
   } else { # Create a new object; nothing supplied to constructor
-    $pid = $this->{'_pop__persistent_pid'} =
-      $class->_POP__Persistent_new_pid;
-    shmwrite($shmid, $this->{'_pop__persistent_version'} = "\cA", $pid, 1);
+    $pid = $this->{'_pop__persistent_pid'} = &_POP__Persistent_new_pid;
     # call our calling classes' initializing routine, if it exists.
     if ($this->can('initialize')) {
       $this->initialize;
     }
+    $dbh->do("exec OBJECTS#NEW $pid");
+    $LOCKED{$pid} = (tied %$this);
     $this->_POP__Persistent_store_all;
   }
   tie(%this, $class, %this);
@@ -107,7 +138,6 @@ sub DESTROY {
   my $this = shift;
   my $tied = tied %$this;
   untie %$this if $tied;
-#  $this->_POP__Persistent_store_all if $this->{'_pop__persistent_changed'};
 }
 
 sub TIEHASH {
@@ -119,52 +149,62 @@ sub TIEHASH {
 sub FETCH {
   my($this, $key) = @_;
   my $ver;
-  shmread($shmid, $ver, $this->{'_pop__persistent_pid'}, 1) or
-    croak "shmread failed on [$this->{'_pop__persistent_pid'}]: $!";
-  if ($ver ne $this->{'_pop__persistent_version'}) {
-    $this->{'_pop__persistent_version'} = $ver;
-    $this->_POP__Persistent_load;
+  if ($LOCKED{$this->{'_pop__persistent_pid'}}) {
+    return $this->{$key};
+  } else {
+    my $ver = $this->_POP__Persistent_get_version;
+    if ($ver != $this->{'_pop__persistent_version'}) {
+      $this->{'_pop__persistent_version'} = $ver;
+      $this->_POP__Persistent_load;
+    }
+    return $this->{$key};
   }
-  return $this->{$key};
+}
+
+sub _POP__Persistent_get_version {
+  my $this = shift;
+  my $sth = $dbh->prepare("exec OBJECTS#VER $this->{'_pop__persistent_pid'}");
+  $sth->execute;
+  if (my @row = $sth->fetchrow) {
+    return $row[0];
+  } else {
+    throw "Object deleted.";
+  }
+}
+
+sub _POP__Persistent_update_version {
+  my $this = shift;
+  my $sth = $dbh->prepare("exec OBJECTS#UPD $this->{'_pop__persistent_pid'}");
+  $sth->execute;
+  if (my @row = $sth->fetchrow) {
+    $this->{'_pop__persistent_version'} = $row[0];
+  } else {
+    throw "Object deleted.";
+  }
 }
 
 sub STORE {
-  # @subkeys is used when it's actuall a collection underneath us
+  # @subkeys is used when it's actually a collection underneath us
   # informing us that something's changed.  See POP::Hash::STORE and
   # POP::Lazy_object_hash::STORE.
   my($this, $key, $value, @subkeys) = @_;
   $this->{$key} = $value unless @subkeys;
   my $pid = $this->{'_pop__persistent_pid'};
-  # Take semaphore
-  my $sem_num = floor($pid/SEM_STEP);
-  $semset->op($sem_num, 0, 0,
-	      $sem_num, 1, 0) or
-    croak "semaphore take on [$sem_num] failed: $!";
-  $this->{'_pop__persistent_version'} =
-    pack("C", unpack("C", $this->{'_pop__persistent_version'})+1);
-  unless (shmwrite($shmid, $this->{'_pop__persistent_version'}, $pid, 1)) {
-    my $shm_fail = "$!";
-    # Give semaphore
-    $semset->op($sem_num, -1, 0) or
-      croak "shmwrite failed on [$pid]: $shm_fail and semaphore give on".
-	    " [$sem_num] failed: $!";
-    croak "shmwrite failed on [$pid]: $shm_fail";
+  if (!$LOCKED{$pid} ||
+	$POP_UPDATE_VERSION_GRANULARITY == $POP_UPDATE_VERSION_ON_CHANGE) {
+    $this->_POP__Persistent_update_version;
   }
   eval {
     $this->_POP__Persistent_store_attr($key, @subkeys);
   };
   if ($@) {
-    $dbh->rollback;
-    $semset->op($sem_num, -1, 0) or
-      croak "STORE on [$pid] {$key} failed: $@".
-	    " and semaphore give on [$sem_num] failed: $!";
     croak "STORE on [$pid] {$key} failed: $@";
-  } else {
-    $dbh->commit;
   }
-  # Give semaphore
-  $semset->op($sem_num, -1, 0) or
-    croak "semaphore give on [$sem_num] failed: $!";
+  if ($POP_TRANSACTION_MODE == $POP_TRANSACTION_AUTO) {
+    &::POP_COMMIT;
+  } else {
+    $LOCKED{$pid} = $this;
+  }
   return $value;
 }
 
@@ -181,11 +221,11 @@ sub delete {
     }
   };
   if ($@) {
-    $dbh->rollback;
     croak "delete on [$pid] failed: $@";
   } else {
-    $dbh->commit;
+    delete $LOCKED{$pid};
     untie %$this;
+    $this = undef;
   }
 }
 
@@ -219,6 +259,18 @@ sub all {
   if ($opts{'where'}) {
     $where_clause = $this->_POP__Persistent_compute_where_clause($opts{'where'});
   }
+  my $isolation_level = ' at isolation read uncommitted';
+  if (my $iso = $opts{'isolation'}) {
+    if ($iso == $POP_ISOLATION_CURRENT) {
+      $isolation_level = '';
+    } elsif ($iso == $POP_ISOLATION_COMMITTED_READ) {
+      $isolation_level = ' at isolation read committed';
+    } elsif ($iso == $POP_ISOLATION_REPEATABLE_READ) {
+      $isolation_level = ' at isolation serializable';
+    } elsif ($iso != $POP_ISOLATION_DIRTY_READ) {
+      croak "Unknown isolation level [$iso]";
+    }
+  }
   my $c = $CLASSES{$class};
   my $lc_name = $c->{'abbr'} || lc($c->{'name'});
   my(@abbr, @type);
@@ -250,7 +302,9 @@ sub all {
   } else {
     $ob_name = 'pid';
   }
-  my $sth = $dbh->prepare("select $select_cols from $lc_name $where_clause order by $ob_name");
+  my $sth = $dbh->prepare(
+    "select $select_cols from $lc_name $where_clause order by $ob_name".
+    $isolation_level);
   $sth->execute;
   my $result = $sth->fetchall_arrayref;
   $sth->finish;
@@ -304,8 +358,8 @@ sub _POP__Persistent_compute_where_clause {
 }
 
 sub _POP__Persistent_new_pid {
-  my $this = shift;
-  my $class = ref $this || $this;
+#  my $this = shift;
+#  my $class = ref $this || $this;
   my $new_pid = $pid_factory->next;
   return $new_pid;
 }
@@ -313,23 +367,7 @@ sub _POP__Persistent_new_pid {
 sub _POP__Persistent_restore_from_pid {
   my($this, $pid) = @_;
   $this->{'_pop__persistent_pid'} = $pid;
-  # Take semaphore
-  my $sem_num = floor($pid/SEM_STEP);
-  $semset->op($sem_num, 0, 0,
-	      $sem_num, 1, 0) or
-    croak "semaphore take on [$sem_num] failed: $!";
-  my $ver;
-  unless (shmread($shmid, $ver, $pid, 1)) {
-    my $shm_fail = "$!";
-    $semset->op($sem_num, -1, 0) or
-      croak "shmread failed on [$pid]: $shm_fail and semaphore give on".
-	    " [$sem_num] failed: $!";
-    croak "shmread failed on [$pid]: $shm_fail";
-  }
-  $this->{'_pop__persistent_version'} = $ver;
-  # Give semaphore
-  $semset->op($sem_num, -1, 0) or
-    croak "semaphore give on [$sem_num] failed: $!";
+  $this->{'_pop__persistent_version'} = $this->_POP__Persistent_get_version;
   $this->_POP__Persistent_load;
 }
 
@@ -349,7 +387,8 @@ sub _POP__Persistent_load {
     my $i;
     # NOTE - we do rely on the hash-walking ordering being the same
     # between $class_def here and poxdb.
-    foreach (values %{$class_def->{'participants'}}, values %{$class_def->{'scalar_attributes'}}) {
+    foreach (values %{$class_def->{'participants'}},
+	     values %{$class_def->{'scalar_attributes'}}) {
       $this->{$_->{'name'}} =
         &_POP__Persistent_type_from_db($_->{'type'}, $result->[0][$i++]);
     }
@@ -386,10 +425,7 @@ sub _POP__Persistent_load {
     }
   };
   if ($@) {
-    $dbh->rollback;
     croak "load of [$pid] failed: $@";
-  } else {
-    $dbh->commit;
   }
 }
 
@@ -486,11 +522,8 @@ sub _POP__Persistent_store_all {
     }
   };
   if ($@) {
-    $dbh->rollback;
     croak "store-all of [$pid] failed: $@";
-  } else {
-    $dbh->commit;
-  }
+  } 
 }
 
 sub _POP__Persistent_list_to_db {
@@ -590,12 +623,13 @@ sub _POP__Persistent_type_to_db {
       return (tied $val)->pid;
     } elsif (ref $val && UNIVERSAL::isa($val, __PACKAGE__))  {
       return $val->pid;
-    } elsif (ref $val eq 'REF' && ref $$val && UNIVERSAL::isa($$val, __PACKAGE__)) {
+    } elsif (ref $val eq 'REF' &&
+	     ref $$val &&
+	     UNIVERSAL::isa($$val, __PACKAGE__)) {
       return ($$val)->pid;
     } else {
-      # Hmm, should be an object, but there's nothing there.  croak? XXX
-#      print "VAL NOT AN OBJECT [$type, $val]\n";
-      return 0;
+      # Hmm, should be an object, but there's nothing there.
+      croak "[$val] is not an object";
     }
   }
   if ($type =~ /^numeric/ || $type eq 'pidtype' || $type eq 'int') {

@@ -1,9 +1,9 @@
-#!/usr/bin/perl
+#!/eit/perl5.005/bin/perl
 use strict;
 use POP::POX_parser;
 #use Fcntl;
 use Carp;
-use POP::Environment;
+use PPS::Environment;
 
 #use vars qw/$OUT_EXT @IN @OUT/;
 
@@ -42,9 +42,31 @@ print STDERR "Generating reference counting code\n";
 
 &gen_refs();
 
-print "--DATATYPE\nsp_addtype pid_type, int\n\n",
-	"--DATATYPE\nsp_addtype seq_type, smallint\n\n",
-	"--DATATYPE\nsp_addtype ver_type, smallint\n\n";
+print "--MISC CLASS=[INIT]\nsp_addtype pid_type, int\n\n",
+	"--MISC CLASS=[INIT]\nsp_addtype seq_type, smallint\n\n",
+	"--MISC CLASS=[INIT]\nsp_addtype ver_type, smallint\n\n";
+
+print "--TABLE CLASS=[INIT]\n",
+      "create table OBJECTS\n",
+      "  (pid pid_type not null primary key,\n",
+      "   ver int default 0)\n\n";
+print "--PROC CLASS=[INIT]\n",	
+      "create proc OBJECTS#VER\n",
+	"  \@pid pid_type\n",
+	"as\n",
+	"  select ver\n",
+	"  from OBJECTS where pid = \@pid\n\n";
+print "--PROC CLASS=[INIT]\n",	
+      "create proc OBJECTS#UPD\n",
+	"  \@pid pid_type\n",
+	"as\n",
+	"  update OBJECTS set ver = ver + 1 where pid = \@pid\n",
+	"  select ver from OBJECTS where pid = \@pid\n\n";
+print "--PROC CLASS=[INIT]\n",	
+      "create proc OBJECTS#NEW\n",
+	"  \@pid pid_type\n",
+	"as\n",
+	"  insert into OBJECTS (pid, ver) values (\@pid, 1)\n\n";
 
 while (my($class, $c) = each %classes) {
   print STDERR "Converting $class\n";
@@ -78,6 +100,7 @@ while (my($class, $c) = each %classes) {
 		"    return 1\n",
 		"  else\n",
 		"    begin\n",
+		"      delete from OBJECTS where pid = \@pid\n",
 		"      delete from ${lc_name} where pid = \@pid\n",
 		join('',
 		  map {
@@ -187,7 +210,6 @@ while (my($class, $c) = each %classes) {
 		 "  insert into ${lc_name}\@$lc_att_name\n",
 		 "    (${lc_name}_pid, hkey, value)\n",
 		 "    values (\@pid, \@key, \@value)\n\n";
-
     } else {
       print "--PROC CLASS=[$class]\n",
 	    "create proc ${lc_name}#DEL\@$lc_att_name\n",

@@ -65,6 +65,8 @@ variable, which is added to environment by create_environment.
 
 =cut
 
+package POP::Environment;
+
 use Term::ReadLine;
 use Carp;
 use Fcntl;

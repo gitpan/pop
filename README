@@ -1,4 +1,4 @@
-Perl Object Persistence (POP) Version 0.03
+Perl Object Persistence (POP) Version 0.05
 
 (c) 1999 Benjamin Holzman - bholzman@bender.com
 All rights reserved.  This is free software; you can
@@ -9,9 +9,9 @@ POP is a system to aid in the development of systems based
 around persistent object technology in the programming language
 Perl.  The persistent objects are stored in a relational database.
 
-This is pre-pre-alpha software.  This means it's poorly documented.
-Reeeeeally poorly documented.  However, I'd be happy to answer any
-questions you have, and I do intend on improving its documentation.
+This is pre-alpha software.  This means it's poorly documented.  However, I'd
+be happy to answer any questions you have, and I do intend on improving its
+documentation.
 
 Here's a suggested recipe for getting started:
 
@@ -23,8 +23,9 @@ does not necessarily represent what the current system does, but at least
 it should give you a starting point.
 
 The beginnings of more up-to-date documentation can be found in README.ALL,
-README.POX and README.LINK. Also, read README.DEPENDENCIES and obtain any
-modules listed there which you don't already have.
+README.POX, README.TRANSACTIONS and README.LINK. Also, read README.DEPENDENCIES
+and obtain any modules listed there which you don't already have.  Oh yeah, I
+do plan on integrating this all into POD format.
 
 Read the comments at the top of lib/POP/Environment.pm; POP relies upon its
 facilities to configure such things as which database to connect to.
@@ -53,14 +54,10 @@ Try creating a schema from that test POX, by typing
 	$ bin/poxdb pox/Foo > Foo.schema
 
 THIS IS DIFFERENT THAN THE DOCUMENTATION SUGGESTS.  THERE IS NOW ONLY _ONE_
-SCHEMA FILE FOR _ALL_ THE POXEN IN A SYSTEM.  THERE ARE GOOD REASONS FOR THIS :)
+SCHEMA FILE FOR _ALL_ THE POXEN IN A SYSTEM.  THERE ARE GOOD REASONS FOR THIS!
 
 Now, you should create an empty database, corresponding to the parameters you
 configured in the environment.
-
-Because of a small oversight, there's a few commands in the schema file which
-you'll have to execute manually; namely, the three "sp_addtype" commands.  Enter
-them using whatever facility you choose (ISQL, perl -MDBI -de42, etc...)
 
 Then load the schema by typing
 
@@ -72,8 +69,8 @@ Then load the schema by typing
 
 )
 
-Now, try to create a perl module for the Bar class by creating a 'lib/Foo' directory
-and typing
+Now, try to create a perl module for the Bar class by creating a 'lib/Foo'
+directory and typing
 
 	$ bin/poxperl pox/Foo -out lib/Foo
 

@@ -1,7 +1,7 @@
-#!/usr/bin/perl
+#!/eit/perl5.005/bin/perl
 use DBI;
 use Carp;
-use POP::Environment;
+use PPS::Environment;
 use POP::Schema_parser;
 my $dsn = "dbi:Sybase:server=$DB_SERVER;database=$DB_DB";
 my $dbh = DBI->connect($dsn, $DB_USER, $DB_PASSWD,
