@@ -1,0 +1,96 @@
+Perl Object Persistence (POP) Version 0.01
+
+(c) 1999 Benjamin Holzman - bholzman@bender.com
+All rights reserved.  This is free software; you can
+redistribute it and/or modify it under the terms of the
+Perl Artistic License.
+
+
+POP is a system to aid in the development of systems based
+around persistent object technology in the programming language
+Perl.  The persistent objects are stored in a relational database.
+
+This is pre-pre-pre-alpha software.  This means it's poorly documented.
+Reeeeeally poorly documented.  However, I'd be happy to answer any
+questions you have, and I do intend on improving its documentation.
+
+Here's a suggested recipe for getting started:
+
+If you don't have Sybase, this is simply not going to work.  You'll have
+to dive into the code, unfortunately.
+
+First, read the file OLD-DOCUMENTATION.html.  As the name suggests, this
+does not necessarily represent what the current system does, but at least
+it should give you a starting point.
+
+Read the comments at the top of lib/POP/Environment.pm; POP relies upon its
+facilities to configure such things as which database to connect to.
+
+Run the bin/create_environment script, which should read the environment.template
+file if you start it from the root of this distribution.  Enter appropriate
+values for the prompted variables.  There are some comments in the "documentation".
+Run 'source environment'.
+
+Try creating a test POX.  You probably want to create a 'pox' directory, and a
+directory for the "system" name underneath that.  Note that every persistent
+class must be in a namespace.  That namespace is called the "system".  I
+know it's weird, but deal with it :).  Our convention is that the class name and
+system name is Initial Caps.  For instance, if you choose to implement a 'Bar'
+class in the 'Foo' system, you'd create pox/Foo/Bar.pox.
+
+	<class name='Bar'>
+	  Test class
+	  <attribute name='baz' type='int'>
+		Test attribute
+	  </attribute>
+	</class>
+
+Try creating a schema from that test POX, by typing
+
+	$ bin/poxdb pox/Foo > Foo.schema
+
+THIS IS DIFFERENT THAN THE DOCUMENTATION SUGGESTS.  THERE IS NOW ONLY _ONE_ SCHEMA
+FILE FOR _ALL_ THE POXEN IN A SYSTEM.  THERE ARE GOOD REASONS FOR THIS :)
+
+Now, you should create an empty database, corresponding to the parameters you
+configured in the environment.
+
+Because of a small oversight, there's a few commands in the schema file which
+you'll have to execute manually; namely, the three "sp_addtype" commands.  Enter
+them using whatever facility you choose (ISQL, perl -MDBI -de42, etc...)
+
+Then load the schema by typing
+
+	$ bin/schema_load < Foo.schema
+
+(note that you could explicitly load _only_ the Bar class by typing
+
+	$ bin/schema_load Bar < Foo.schema
+
+)
+
+Now, try to create a perl module for the Bar class by creating a 'lib/Foo' directory
+and typing
+
+	$ bin/poxperl pox/Foo -out lib/Foo
+
+Then you should be able to run
+
+	$ perl -MFoo::Bar -de42
+
+to get into the debugger. Try the following:
+
+	DB<1> $b = new Foo::Bar
+
+	DB<2> $b->baz(42)
+
+	DB<3> p $b->pid
+	1
+	DB<4> undef $b
+
+	DB<5> $b = new Foo::Bar 1
+
+	DB<6> p $b->baz
+	42
+
+If you manage to get this far, please let me know!!!
