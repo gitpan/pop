@@ -8,7 +8,7 @@ Desc:	Class implementing a parser for POX files
 =cut
 package POP::POX_parser;
 
-$VERSION = do{my(@r)=q$Revision: 1.4 $=~/d+/g;sprintf '%d.'.'%02d'x$#r,@r};
+$VERSION = do{my(@r)=q$Revision: 1.5 $=~/d+/g;sprintf '%d.'.'%02d'x$#r,@r};
 
 use XML::Parser;
 use Carp;
@@ -83,6 +83,13 @@ sub start {
     } else {
       $this->{'class'}{'scalar_attributes'}{$attrib{'name'}} = \%attrib;
     }
+  } elsif ($elem eq 'participant') {
+    unless ($this->{'parents'}[-1]{'type'} eq 'link') {
+      croak "Can't define participant in a non-link class\n";
+    }
+    push(@{$this->{'parents'}},
+	$this->{'class'}{'participants'}{$attrib{'name'}} = \%attrib);
+	$attrib{'dbname'} = $attrib{'abbr'} || lc($attrib{'name'});
   } elsif ($elem eq 'method') {
     push(@{$this->{'parents'}},
        $this->{'class'}{'methods'}{$attrib{'name'}} = \%attrib);
@@ -137,7 +144,8 @@ sub proc {
   my($this, $parser, $target, $data) = @_;
   return if $in_isa;
   if ($target eq 'version') {
-    $data =~ /\$Revision: 1.4 $/;
+    $data =~ /\$
+	Revision:\ ([\d.]+)/x;
     $this->{'version'} = $1;
   }
 }

@@ -13,13 +13,14 @@ Desc:	This is the persistent base class for POP.  It handles all of the
 require 5.005;
 package POP::Persistent;
 
-$VERSION = do{my(@r)=q$Revision: 1.12 $=~/d+/g;sprintf '%d.'.'%02d'x$#r,@r};
+$VERSION = do{my(@r)=q$Revision: 1.14 $=~/d+/g;sprintf '%d.'.'%02d'x$#r,@r};
 
 use strict;
 use vars qw/@ISA $pid_factory %CLASSES %OBJECTS $VERSION/;
 use Tie::Hash;
 use DBI;
 use Carp;
+use POP::Environment;
 use POSIX qw/floor/;
 use constant NOT_FOUND	=> -1;
 use constant SHM_KEY => 1999;
@@ -28,7 +29,6 @@ use constant SEM_STEP => 8192;
 use IPC::SysV qw(IPC_CREAT S_IRWXU S_IRWXG);
 use IPC::Semaphore;
 use Devel::WeakRef;
-use POP::Environment;
 use POP::Lazy_object;
 use POP::Lazy_object_list;
 use POP::Lazy_object_hash;
@@ -207,6 +207,7 @@ sub all {
   if (UNIVERSAL::isa($attr[0], 'HASH')) {
     %opts = %{shift @attr};
   }
+  my $where_clause;
   my $class = ref $this ? ref $this : $this;
   unless ($CLASSES{$class}) {
     my $class_def_file = &POP::POX_parser::pox_find($class);
@@ -214,6 +215,9 @@ sub all {
       croak "Couldn't find POX for [$class]. POXLIB=($ENV{POXLIB})";
     }
     $CLASSES{$class} = $parser->parse($class_def_file);
+  }
+  if ($opts{'where'}) {
+    $where_clause = $this->_POP__Persistent_compute_where_clause($opts{'where'});
   }
   my $c = $CLASSES{$class};
   my $lc_name = $c->{'abbr'} || lc($c->{'name'});
@@ -229,8 +233,11 @@ sub all {
       if ($a->{'list'} || $a->{'hash'}) {
         croak "Cannot select multi-valued attribute for return";
       }
-      push(@abbr, $a->{'abbr'} || lc($attr));
+      push(@abbr, $a->{'dbname'});
       push(@type, $a->{'type'});
+    } elsif (my $p = $c->{'participants'}{$attr}) {
+      push(@abbr, $p->{'dbname'});
+      push(@type, $p->{'type'});
     } else {
       croak "Unknown attribute [$attr]";
     }
@@ -238,12 +245,12 @@ sub all {
   my $select_cols = join ',',@abbr;
   my $ob_name;
   if ($opts{'sort'}) {
-    $ob_name = $c->{'attributes'}{$opts{'sort'}}{'abbr'} ||
-		 lc($opts{'sort'});
+    $ob_name = $c->{'attributes'}{$opts{'sort'}}{'dbname'} ||
+		$c->{'participants'}{$opts{'sort'}}{'dbname'};
   } else {
     $ob_name = 'pid';
   }
-  my $sth = $dbh->prepare("select $select_cols from $lc_name order by $ob_name");
+  my $sth = $dbh->prepare("select $select_cols from $lc_name $where_clause order by $ob_name");
   $sth->execute;
   my $result = $sth->fetchall_arrayref;
   $sth->finish;
@@ -261,6 +268,39 @@ sub all {
     }
   }
   return wantarray ? @return : \@return;
+}
+
+sub _POP__Persistent_compute_where_clause {
+  my($this, $where) = @_;
+  # Where clauses should be supplied like this:
+  # [ [ ATTR, OP, VALUE ], CONNECTOR, [ATTR, OP, VALUE] ]
+  # where OP is one of {'=', '>', '<', '>=', '<=', '!='}
+  # and CONNECTOR is one of {'AND', 'OR'}
+  # ( yeah, I know this is incomplete, but it's a start )
+  my $sql = 'where ';
+  my $class = ref $this ? ref $this : $this;
+  my $c = $CLASSES{$class};
+  foreach my $expr_or_conn (@$where) {
+    if (ref $expr_or_conn) {
+      my($attr, $op, $val) = @$expr_or_conn;
+      if ($c->{'attributes'}{'list'} ||
+	  $c->{'attributes'}{'hash'}) {
+	croak "Cannot use multi-valued attribute in where clause";
+      }
+      if ($c->{'attributes'}{$attr}) {
+        $val = &_POP__Persistent_type_to_db(
+	  $c->{'attributes'}{$attr}{'type'}, $val);
+        $sql .= "$c->{'attributes'}{$attr}{'dbname'} $op $val";
+      } elsif ($c->{'participants'}{$attr}) {
+        $val = &_POP__Persistent_type_to_db(
+	  $c->{'participants'}{$attr}{'type'}, $val);
+        $sql .= "$c->{'participants'}{$attr}{'dbname'} $op $val";
+      } else { croak "[$attr] is neither an attribute nor a participant" }
+    } else {
+      $sql .= " $expr_or_conn ";
+    }
+  }
+  return $sql;
 }
 
 sub _POP__Persistent_new_pid {
@@ -309,7 +349,7 @@ sub _POP__Persistent_load {
     my $i;
     # NOTE - we do rely on the hash-walking ordering being the same
     # between $class_def here and poxdb.
-    foreach (values %{$class_def->{'scalar_attributes'}}) {
+    foreach (values %{$class_def->{'participants'}}, values %{$class_def->{'scalar_attributes'}}) {
       $this->{$_->{'name'}} =
         &_POP__Persistent_type_from_db($_->{'type'}, $result->[0][$i++]);
     }
@@ -357,9 +397,10 @@ sub _POP__Persistent_store_attr {
   my($this, $key, @subkeys) = @_;
   my $pid = $this->pid;
   my $class_def = $CLASSES{ref $this};
-  my $attr = $class_def->{'attributes'}{$key};
-  my $proc = $class_def->{'abbr'} || lc($class_def->{'name'});
-  my $name = $attr->{'abbr'} || lc($attr->{'name'});
+  my $attr = $class_def->{'attributes'}{$key} ||
+		$class_def->{'participants'}{$key};
+  my $proc = $class_def->{'dbname'};
+  my $name = $attr->{'dbname'};
   if ($attr->{'hash'}) {
     if (@subkeys) {
      for my $subkey (@subkeys) {
@@ -434,6 +475,7 @@ sub _POP__Persistent_store_all {
     $dbh->do("exec ${proc}#SET ".
       join(', ', $pid,
 	(map {&_POP__Persistent_type_to_db($_->{'type'}, $this->{$_->{'name'}})}
+	    values %{$class_def->{'participants'}},
             values %{$class_def->{'scalar_attributes'}}),
         map {$this->{'_pop__persistent_mv_attr_vers'}{$_}||0}
 	    keys %{$class_def->{'list_attributes'}},

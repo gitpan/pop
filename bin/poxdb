@@ -1,9 +1,9 @@
-#!perl
+#!/usr/bin/perl
 use strict;
 use POP::POX_parser;
 #use Fcntl;
 use Carp;
-use PPS::Environment;
+use POP::Environment;
 
 #use vars qw/$OUT_EXT @IN @OUT/;
 
@@ -53,6 +53,7 @@ while (my($class, $c) = each %classes) {
 	"create table $lc_name\n",
 	"  (pid pid_type not null primary key,\n",
 	join(",\n", map {"   ".&conv_scalar_att($_)}
+			values %{$c->{'participants'}},
 			values %{$c->{'scalar_attributes'}}, # This order
 			values %{$c->{'list_attributes'}},   # is important!
 			values %{$c->{'hash_attributes'}}),
@@ -63,6 +64,10 @@ while (my($class, $c) = each %classes) {
 			 values %{$c->{'hash_attributes'}}),
 	"\n\n";
   print $references{$c->{'name'}};
+  for (values %{$c->{'participants'}}) {
+    print "--INDEX CLASS=[$class]\n",
+	  "create index i_$_->{'dbname'} on $lc_name ($_->{'dbname'})\n\n";
+  }
   print "--PROC CLASS=[$class]\n",
 	"create proc ${lc_name}#DEL\n",
 		"  \@pid pid_type\n",
@@ -88,6 +93,7 @@ while (my($class, $c) = each %classes) {
 		  "as\n",
 		  "  select ",
 		  join(', ', map {$_->{'dbname'}}
+			  values %{$c->{'participants'}},
 			  values %{$c->{'scalar_attributes'}},
 			  values %{$c->{'list_attributes'}},
 			  values %{$c->{'hash_attributes'}}),"\n",
@@ -121,6 +127,7 @@ while (my($class, $c) = each %classes) {
 		join(",\n",
 		     (map {'  @'.lc($_->{'name'})." ".&sp_type($_->{'type'})}
 		          {'name'=>'pid', 'type'=>'pid_type'},
+			  values %{$c->{'participants'}},
 			  values %{$c->{'scalar_attributes'}}),
 		     map {'  @'.lc($_).'#ver ver_type'}
 			 keys %{$c->{'list_attributes'}},
@@ -131,6 +138,7 @@ while (my($class, $c) = each %classes) {
 		"    (",
 		 join(', ', 'pid',
 		   (map {$_->{'dbname'}}
+			values %{$c->{'participants'}},
 			values %{$c->{'scalar_attributes'}},
 			values %{$c->{'list_attributes'}},
 			values %{$c->{'hash_attributes'}})
@@ -138,12 +146,12 @@ while (my($class, $c) = each %classes) {
 		    ")\n",
 		"    values (",
 		 join(', ', '@pid',
-		   (map {'@'.lc($_)} keys %{$c->{'scalar_attributes'}}),
+		   (map {'@'.lc($_)} keys %{$c->{'participants'}}, keys %{$c->{'scalar_attributes'}}),
 		   (map {'@'.lc($_).'#ver'} keys %{$c->{'list_attributes'}},
 					    keys %{$c->{'hash_attributes'}})
 		     ),
 		           ")\n\n";
-  foreach (values %{$c->{'scalar_attributes'}}) {
+  foreach (values %{$c->{'participants'}}, values %{$c->{'scalar_attributes'}}) {
     my $lc_att_name = $_->{'dbname'};
     print "--PROC CLASS=[$class]\n",
 	  "create proc ${lc_name}#SET\$$lc_att_name\n",

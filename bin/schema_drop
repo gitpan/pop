@@ -1,4 +1,4 @@
-#!/eit/perl5.005/bin/perl
+#!/usr/bin/perl
 use DBI;
 use Carp;
 use POP::Environment;

@@ -1,7 +1,10 @@
+perl >= 5.005
 Devel::WeakRef;
 File::lockf;
 IPC::Semaphore;
 IPC::SysV qw(IPC_CREAT S_IRWXU S_IRWXG);
 SelectSaver;
 DBI;
+DBD::Sybase;
 XML::Parser;
+Term::Readline;

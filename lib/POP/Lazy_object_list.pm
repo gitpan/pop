@@ -6,7 +6,7 @@ Desc:	Implements a tied array which contains a list of persistent objects,
 =cut
 package POP::Lazy_object_list;
 
-$VERSION = do{my(@r)=q$Revision: 1.6 $=~/d+/g;sprintf '%d.'.'%02d'x$#r,@r};
+$VERSION = do{my(@r)=q$Revision: 1.7 $=~/d+/g;sprintf '%d.'.'%02d'x$#r,@r};
 
 use strict;
 use Carp;

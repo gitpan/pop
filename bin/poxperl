@@ -1,4 +1,4 @@
-#!perl
+#!/usr/bin/perl
 use strict;
 use POP::POX_parser;
 use Fcntl;
@@ -61,6 +61,10 @@ Q_PM_Q
 sub initialize {
   my $this = shift;
 Q_PM_Q
+  foreach my $p_name (sort keys %{$c->{'participants'}}) {
+    my $part = $c->{'participants'}{$p_name};
+    print OUT "  \$this->{'$p_name'} = \\do{my \$a};\n";
+  }
   foreach my $a_name (sort keys %{$c->{'attributes'}}) {
     my $attribute = $c->{'attributes'}{$a_name};
     if ($attribute->{'hash'}) {
@@ -118,6 +122,42 @@ sub $cm_name {
 QQ_PM_QQ
     print OUT &param_list(values %{$class_method->{'params'}})."\n";
     print OUT "\n}\n";
+  }
+
+  foreach my $p_name (sort keys %{$c->{'participants'}}) {
+    my $part = $c->{'participants'}{$p_name};
+    &strip_space($part->{'comments'});
+    print OUT <<QQ_PM_QQ;
+
+=head2 CLASS METHOD
+Title:  $pkg$c->{'name'}::all_with_$p_name
+Desc:	Returns list of $c->{'name'} objects that have the given
+	$part->{'type'} as a $p_name
+=cut
+
+sub all_with_$p_name {
+  my(\$type, \$obj) = \@_;
+  return map {\$type->new(\$_)}
+	 \$type->all({'where' => [['$p_name', '=', \$obj]]});
+}
+
+=head2 PARTICIPANT
+Title:	$pkg$c->{'name'}::$p_name
+Desc:	$part->{'comments'}
+=cut
+
+sub $p_name {
+  my \$this = shift;
+  if (\@_) {
+    my \$obj = shift;
+    unless (ref(\$obj) && \$obj->isa('$part->{'type'}')) {
+      croak "[\$obj] is not a $part->{'type'}";
+    }
+    \$this->{'$p_name'} = \\\$obj;
+  }
+  \${\$this->{'$p_name'}};
+}
+QQ_PM_QQ
   }
 
   foreach my $a_name (sort keys %{$c->{'attributes'}}) {

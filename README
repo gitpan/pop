@@ -1,16 +1,15 @@
-Perl Object Persistence (POP) Version 0.01
+Perl Object Persistence (POP) Version 0.03
 
 (c) 1999 Benjamin Holzman - bholzman@bender.com
 All rights reserved.  This is free software; you can
 redistribute it and/or modify it under the terms of the
 Perl Artistic License.
 
-
 POP is a system to aid in the development of systems based
 around persistent object technology in the programming language
 Perl.  The persistent objects are stored in a relational database.
 
-This is pre-pre-pre-alpha software.  This means it's poorly documented.
+This is pre-pre-alpha software.  This means it's poorly documented.
 Reeeeeally poorly documented.  However, I'd be happy to answer any
 questions you have, and I do intend on improving its documentation.
 
@@ -23,13 +22,17 @@ First, read the file OLD-DOCUMENTATION.html.  As the name suggests, this
 does not necessarily represent what the current system does, but at least
 it should give you a starting point.
 
+The beginnings of more up-to-date documentation can be found in README.ALL,
+README.POX and README.LINK. Also, read README.DEPENDENCIES and obtain any
+modules listed there which you don't already have.
+
 Read the comments at the top of lib/POP/Environment.pm; POP relies upon its
 facilities to configure such things as which database to connect to.
 
-Run the bin/create_environment script, which should read the environment.template
-file if you start it from the root of this distribution.  Enter appropriate
-values for the prompted variables.  There are some comments in the "documentation".
-Run 'source environment'.
+Run the bin/create_environment script, which should read the
+environment.template file if you start it from the root of this distribution.
+Enter appropriate values for the prompted variables.  There are some comments
+in the "documentation".  Run 'source environment'.
 
 Try creating a test POX.  You probably want to create a 'pox' directory, and a
 directory for the "system" name underneath that.  Note that every persistent
@@ -49,8 +52,8 @@ Try creating a schema from that test POX, by typing
 
 	$ bin/poxdb pox/Foo > Foo.schema
 
-THIS IS DIFFERENT THAN THE DOCUMENTATION SUGGESTS.  THERE IS NOW ONLY _ONE_ SCHEMA
-FILE FOR _ALL_ THE POXEN IN A SYSTEM.  THERE ARE GOOD REASONS FOR THIS :)
+THIS IS DIFFERENT THAN THE DOCUMENTATION SUGGESTS.  THERE IS NOW ONLY _ONE_
+SCHEMA FILE FOR _ALL_ THE POXEN IN A SYSTEM.  THERE ARE GOOD REASONS FOR THIS :)
 
 Now, you should create an empty database, corresponding to the parameters you
 configured in the environment.
