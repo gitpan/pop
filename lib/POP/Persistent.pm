@@ -25,7 +25,7 @@ use vars qw/@ISA $pid_factory %CLASSES %OBJECTS %LOCKED $VERSION
 	$POP_ISOLATION_REPEATABLE_READ $POP_ISOLATION_CURRENT/;
 use Tie::Hash;
 use DBI;
-use Carp;
+use POP::Carp;
 use POP::Environment;
 use Devel::WeakRef;
 use POP::Lazy_object;
@@ -109,16 +109,21 @@ sub main::POP_ISOLATION {
     croak "Unknown isolation level [$level]";
   }
 }
- 
-sub new {
-  my $class = shift;
-  unless ($CLASSES{$class}) {
+
+sub _POP__Persistent_cache_class {
+  unless ($CLASSES{$_[0]}) {
+    my $class = $_[0];
     my $class_def_file = &POP::POX_parser::pox_find($class);
     unless ($class_def_file) {
       croak "Couldn't find POX for [$class]. POP_POXLIB=($POP_POXLIB)";
     }
     $CLASSES{$class} = $parser->parse($class_def_file);
   }
+}
+ 
+sub new {
+  my $class = shift;
+  _POP__Persistent_cache_class($class);
   my $pid;
   if (@_ & 1) { # Odd number of parameters
     $pid = shift;
@@ -261,15 +266,10 @@ sub all {
   }
   my $where_clause;
   my $class = ref $this ? ref $this : $this;
-  unless ($CLASSES{$class}) {
-    my $class_def_file = &POP::POX_parser::pox_find($class);
-    unless ($class_def_file) {
-      croak "Couldn't find POX for [$class]. POP_POXLIB=($POP_POXLIB)";
-    }
-    $CLASSES{$class} = $parser->parse($class_def_file);
-  }
+  _POP__Persistent_cache_class($class);
   if ($opts{'where'}) {
-    $where_clause = $this->_POP__Persistent_compute_where_clause($opts{'where'});
+    $where_clause =
+	$this->_POP__Persistent_compute_where_clause($opts{'where'});
   }
   my $isolation_level = ' at isolation read uncommitted';
   if (my $iso = $opts{'isolation'}) {
@@ -349,15 +349,16 @@ sub _POP__Persistent_compute_where_clause {
   foreach my $expr_or_conn (@$where) {
     if (ref $expr_or_conn) {
       my($attr, $op, $val) = @$expr_or_conn;
-      if ($c->{'attributes'}{$attr}{'list'} ||
-	  $c->{'attributes'}{$attr}{'hash'}) {
+      if (exists $c->{'attributes'}{$attr} && (
+	  $c->{'attributes'}{$attr}{'list'} ||
+	  $c->{'attributes'}{$attr}{'hash'})) {
 	croak "Cannot use multi-valued attribute in where clause";
       }
-      if ($c->{'attributes'}{$attr}) {
+      if (exists $c->{'attributes'}{$attr}) {
         $val = &_POP__Persistent_type_to_db(
 	  $c->{'attributes'}{$attr}{'type'}, $val);
         $sql .= "$c->{'attributes'}{$attr}{'dbname'} $op $val";
-      } elsif ($c->{'participants'}{$attr}) {
+      } elsif (exists $c->{'participants'}{$attr}) {
         $val = &_POP__Persistent_type_to_db(
 	  $c->{'participants'}{$attr}{'type'}, $val);
         $sql .= "$c->{'participants'}{$attr}{'dbname'} $op $val";

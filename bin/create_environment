@@ -59,7 +59,7 @@ message.  The error message will list all the non-existent variables.
 Furthermore, each environment variable thus mentioned will be exported to 
 a scalar of the same name in the caller’s namespace.  The list of 
 variables to be exported may be limited by providing a list of names to 
-use PPS::Environment.  Environment.pm knows where to find the 
+use POP::Environment.  Environment.pm knows where to find the 
 environment.template file by looking at the ENV_TEMPLATE environment 
 variable, which is added to environment by create_environment.  
 

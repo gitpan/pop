@@ -3,7 +3,7 @@ use strict;
 use POP::POX_parser;
 #use Fcntl;
 use Carp;
-use PPS::Environment;
+use POP::Environment;
 
 #use vars qw/$OUT_EXT @IN @OUT/;
 
@@ -109,7 +109,7 @@ while (my($class, $c) = each %classes) {
 		  } values %{$c->{'list_attributes'}},
 		    values %{$c->{'hash_attributes'}}).
 		"    end\n\n";
-  if (keys %{$c->{'attributes'}}) {
+  if (keys %{$c->{'attributes'}} || keys %{$c->{'participants'}}) {
     print "--PROC CLASS=[$class]\n",
 	  "create proc ${lc_name}#GET\n",
 		  "  \@pid pid_type\n",

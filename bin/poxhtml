@@ -53,7 +53,8 @@ for (my $i; $i < @IN; $i++) {
 	        $_->{'comments'}.
 	      "</li>".
 	    "</font>\n"}
-	   values %{$c->{'attributes'}}),
+	   values %{$c->{'attributes'}},
+	   values %{$c->{'participants'}}),
       "</ul>",
       "<H2>Constructors</H2>\n",
       "<ul>",
